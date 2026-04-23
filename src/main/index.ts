@@ -1,16 +1,26 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  nativeImage,
+  screen,
+  Tray
+} from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 
-const COLLAPSED = { width: 120, height: 120 }
-const EXPANDED = { width: 360, height: 420 }
+const COLLAPSED = { width: 80, height: 80 }
+const EXPANDED = { width: 380, height: 690 }
 const SCREEN_MARGIN = 20
 
 type Anchor = { x: number; y: number }
 type State = { anchor?: Anchor }
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
 let panelExpanded = false
 
 function statePath(): string {
@@ -56,8 +66,7 @@ function defaultAnchor(): Anchor {
 }
 
 function createWindow(): BrowserWindow {
-  const saved = loadState().anchor
-  const anchor = clampAnchor(saved ?? defaultAnchor())
+  const anchor = clampAnchor(loadState().anchor ?? defaultAnchor())
   const x = anchor.x - COLLAPSED.width
   const y = anchor.y - COLLAPSED.height
 
@@ -73,9 +82,12 @@ function createWindow(): BrowserWindow {
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
+    title: 'TradingGYM Live',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
     }
   })
 
@@ -116,17 +128,72 @@ function togglePanel(): boolean {
     },
     panelExpanded
   )
+  mainWindow.webContents.send('panel:state', panelExpanded)
   return panelExpanded
+}
+
+function showAndTogglePanel(): void {
+  if (!mainWindow) {
+    createWindow()
+    return
+  }
+  if (!mainWindow.isVisible()) mainWindow.show()
+  mainWindow.focus()
+  togglePanel()
+}
+
+function createTray(): void {
+  const iconPath = join(__dirname, '../../resources/icon.png')
+  const image = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 })
+  tray = new Tray(image)
+  tray.setToolTip('TradingGYM Live')
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Toggle Panel',
+      accelerator: 'CommandOrControl+Shift+Space',
+      click: () => showAndTogglePanel()
+    },
+    { type: 'separator' },
+    { label: 'Quit TradingGYM Live', click: () => app.quit() }
+  ])
+  tray.setContextMenu(menu)
+  tray.on('click', () => showAndTogglePanel())
+}
+
+function registerIpc(): void {
+  ipcMain.handle('panel:toggle', () => togglePanel())
+  ipcMain.handle('panel:get-state', () => panelExpanded)
+  ipcMain.handle('window:minimize', () => {
+    mainWindow?.minimize()
+  })
+  ipcMain.handle('window:toggle-always-on-top', () => {
+    if (!mainWindow) return false
+    const next = !mainWindow.isAlwaysOnTop()
+    if (next) mainWindow.setAlwaysOnTop(true, 'screen-saver')
+    else mainWindow.setAlwaysOnTop(false)
+    return next
+  })
+  ipcMain.handle('window:get-always-on-top', () => mainWindow?.isAlwaysOnTop() ?? false)
 }
 
 app.whenReady().then(() => {
   createWindow()
+  createTray()
+  registerIpc()
 
-  ipcMain.handle('panel:toggle', () => togglePanel())
+  const hotkey = 'CommandOrControl+Shift+Space'
+  const registered = globalShortcut.register(hotkey, showAndTogglePanel)
+  if (!registered) console.warn(`Failed to register global shortcut ${hotkey}`)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    else mainWindow?.show()
   })
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {

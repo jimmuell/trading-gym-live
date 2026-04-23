@@ -1,7 +1,7 @@
 {
-  "name": "alaunch",
+  "name": "tradinggym-live",
   "version": "0.0.1",
-  "description": "Floating always-on-top AI panel",
+  "description": "TradingGYM Live — your floating trading companion",
   "main": "./out/main/index.js",
   "author": "James Mueller",
   "homepage": "https://electron-vite.org",
@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
-    "@electron-toolkit/utils": "^4.0.0"
+    "@electron-toolkit/utils": "^4.0.0",
+    "lucide-react": "^1.9.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
@@ -53,5 +54,5 @@
       "esbuild"
     ]
   },
-  "productName": "alaunch"
+  "productName": "TradingGYM Live"
 }

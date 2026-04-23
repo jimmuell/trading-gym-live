@@ -1,9 +1,9 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { AlaunchAPI } from './index'
+import type { TradingGymAPI } from './index'
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: AlaunchAPI
+    api: TradingGymAPI
   }
 }

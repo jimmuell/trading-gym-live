@@ -1,16 +1,24 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-// Custom APIs for renderer
 const api = {
-  togglePanel: (): Promise<boolean> => ipcRenderer.invoke('panel:toggle')
+  togglePanel: (): Promise<boolean> => ipcRenderer.invoke('panel:toggle'),
+  getPanelState: (): Promise<boolean> => ipcRenderer.invoke('panel:get-state'),
+  onPanelState: (cb: (expanded: boolean) => void): (() => void) => {
+    const handler = (_: IpcRendererEvent, expanded: boolean): void => cb(expanded)
+    ipcRenderer.on('panel:state', handler)
+    return () => {
+      ipcRenderer.off('panel:state', handler)
+    }
+  },
+  minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+  toggleAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-always-on-top'),
+  getAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window:get-always-on-top')
 }
 
-export type AlaunchAPI = typeof api
+export type TradingGymAPI = typeof api
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
