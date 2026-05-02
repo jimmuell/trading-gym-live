@@ -14,7 +14,12 @@ const api = {
   },
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   toggleAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window:toggle-always-on-top'),
-  getAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window:get-always-on-top')
+  getAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window:get-always-on-top'),
+  auth: {
+    getToken: (): Promise<string | null> => ipcRenderer.invoke('auth:get-token'),
+    saveToken: (token: string): Promise<boolean> => ipcRenderer.invoke('auth:save-token', token),
+    clearToken: (): Promise<void> => ipcRenderer.invoke('auth:clear-token')
+  }
 }
 
 export type TradingGymAPI = typeof api

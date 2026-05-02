@@ -5,10 +5,11 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  safeStorage,
   screen,
   Tray
 } from 'electron'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 
@@ -25,6 +26,50 @@ let panelExpanded = false
 
 function statePath(): string {
   return join(app.getPath('userData'), 'state.json')
+}
+
+function authTokenPath(): string {
+  return join(app.getPath('userData'), 'auth.bin')
+}
+
+function readAuthToken(): string | null {
+  try {
+    const p = authTokenPath()
+    if (!existsSync(p)) return null
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.warn('safeStorage encryption unavailable — refusing to read auth token')
+      return null
+    }
+    const encrypted = readFileSync(p)
+    return safeStorage.decryptString(encrypted)
+  } catch (err) {
+    console.error('Failed to read auth token:', err)
+    return null
+  }
+}
+
+function writeAuthToken(token: string): boolean {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.warn('safeStorage encryption unavailable — refusing to write auth token')
+      return false
+    }
+    const encrypted = safeStorage.encryptString(token)
+    writeFileSync(authTokenPath(), encrypted)
+    return true
+  } catch (err) {
+    console.error('Failed to write auth token:', err)
+    return false
+  }
+}
+
+function clearAuthToken(): void {
+  try {
+    const p = authTokenPath()
+    if (existsSync(p)) unlinkSync(p)
+  } catch (err) {
+    console.error('Failed to clear auth token:', err)
+  }
 }
 
 function loadState(): State {
@@ -175,6 +220,12 @@ function registerIpc(): void {
     return next
   })
   ipcMain.handle('window:get-always-on-top', () => mainWindow?.isAlwaysOnTop() ?? false)
+
+  ipcMain.handle('auth:get-token', () => readAuthToken())
+  ipcMain.handle('auth:save-token', (_evt, token: string) => writeAuthToken(token))
+  ipcMain.handle('auth:clear-token', () => {
+    clearAuthToken()
+  })
 }
 
 app.whenReady().then(() => {

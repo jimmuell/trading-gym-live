@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import FloatingButton from './components/FloatingButton'
 import PanelContent from './components/PanelContent'
+import { AuthProvider } from './auth/AuthContext'
 
-export type Tab = 'checklist' | 'screenshot' | 'settings'
+export type Tab = 'checklist' | 'netpnl' | 'screenshot' | 'settings'
 
 const drag = { WebkitAppRegion: 'drag' } as React.CSSProperties
 
@@ -31,10 +32,12 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <div className="relative h-screen w-screen" style={drag}>
-      {expanded && <PanelContent tab={tab} onTabChange={setTab} onClose={toggle} />}
-      <FloatingButton onClick={toggle} expanded={expanded} />
-    </div>
+    <AuthProvider>
+      <div className="relative h-screen w-screen" style={drag}>
+        {expanded && <PanelContent tab={tab} onTabChange={setTab} onClose={toggle} />}
+        <FloatingButton onClick={toggle} expanded={expanded} />
+      </div>
+    </AuthProvider>
   )
 }
 

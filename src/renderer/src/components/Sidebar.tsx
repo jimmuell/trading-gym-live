@@ -1,4 +1,4 @@
-import { Camera, ClipboardCheck, Settings } from 'lucide-react'
+import { Camera, ClipboardCheck, DollarSign, Settings } from 'lucide-react'
 import type { Tab } from '../App'
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
 
 const topItems: { id: Tab; label: string; Icon: typeof ClipboardCheck }[] = [
   { id: 'checklist', label: 'Checklist', Icon: ClipboardCheck },
+  { id: 'netpnl', label: 'Net P&L', Icon: DollarSign },
   { id: 'screenshot', label: 'Screenshot', Icon: Camera }
 ]
 
