@@ -198,6 +198,23 @@ function togglePanel(): boolean {
     const expandUp = current.y - workArea.y >= EXPANDED.height
     newX = expandLeft ? collapsedAnchor.x - EXPANDED.width : current.x
     newY = expandUp ? collapsedAnchor.y - EXPANDED.height : current.y
+
+    // Final safety clamp — guarantees the panel stays fully on-screen even
+    // when the button is mid-display and neither side has enough room for
+    // the full panel height. The button position on collapse is restored
+    // from collapsedAnchor (saved above), so this clamp can't desync it.
+    if (newX + EXPANDED.width > workArea.x + workArea.width) {
+      newX = workArea.x + workArea.width - EXPANDED.width
+    }
+    if (newX < workArea.x) {
+      newX = workArea.x
+    }
+    if (newY + EXPANDED.height > workArea.y + workArea.height) {
+      newY = workArea.y + workArea.height - EXPANDED.height
+    }
+    if (newY < workArea.y) {
+      newY = workArea.y
+    }
   } else {
     // Collapsing: restore the button to the saved bottom-right anchor,
     // ignoring any drift that happened during expansion.

@@ -491,9 +491,53 @@ RLS. Full migration: `migrations/2026-05-03_live_trades.sql`.
 - `QuickTradeEntry` and the `trades` table are untouched. Manual
   logging continues to work alongside auto-captured trades.
 
-### Phase B2 — Menu Bar Display
+### Phase B2 — Tray UX + Panel Layout (SHIPPED 2026-05-03)
 
-#### 7.8 Menu Bar Readout
+**Note:** the original B2 ("Menu Bar Display") was deferred. What shipped under
+the B2 banner is a set of UX fixes that became necessary once daily use of
+the floating button surfaced edge cases. The Menu Bar Display spec is
+preserved below as **Deferred — Menu Bar Display**; it's a candidate for a
+later phase.
+
+#### What shipped
+
+- **Tray show/hide toggle** — new "Hide Floating Button" / "Show Floating
+  Button" item in the tray context menu. Toggles `mainWindow.show()` /
+  `hide()`. Visibility persisted in `state.json` alongside the anchor;
+  survives quit/relaunch. If the panel is open when the user hides, it
+  collapses to the button first so the next show doesn't pop a full-size
+  panel onto the screen.
+- **Smart panel expansion direction** — `togglePanel()` picks expansion
+  direction based on available work-area room: prefers up + left, falls
+  back to down / right when there isn't room. After choosing direction,
+  a final clamp pins the expanded window inside `workArea` for cases
+  where the button is mid-display and neither side has enough headroom
+  for the full 690px panel height.
+- **Floating button position preserved across expand/collapse** —
+  module-level `collapsedAnchor` saves the bottom-right corner *before*
+  expansion. On collapse the button restores from that anchor, so any
+  clamping that happened during expansion can't desync the return
+  position. Replaces the prior "compute anchor from current bounds"
+  approach which drifted whenever macOS clamped the expanded window.
+- **Floating button drag fix** — outer ring (`h-16 w-16` div in
+  `FloatingButton.tsx`) gained explicit `WebkitAppRegion: 'drag'` +
+  `cursor: 'grab'`. The inner button keeps `no-drag` so clicks still
+  register. The dark ring is now a reliable drag handle.
+- **Global hotkey changed `⌘⇧Space` → `⌃⇧G`** — the original conflicted
+  with macOS Spotlight on this user's setup; `globalShortcut.register`
+  silently failed. Tray menu accelerator label updated to match.
+- **Tray single-click behavior removed** — the previous custom click
+  handler tried to be smart (show button if hidden, toggle panel if
+  visible). Removing it restores the standard macOS tray behavior:
+  click opens the context menu, period. Less surprising, fewer code
+  paths.
+
+#### Deferred — Menu Bar Display
+
+The original B2 spec below is **not built**. Listed here so the design
+isn't lost; not on the immediate roadmap.
+
+##### 7.8 Menu Bar Readout (deferred)
 
 Persistent macOS menu bar display:
 
@@ -501,11 +545,11 @@ TG  \+$39  │  12 trades  │  🟢
 
 Click → dropdown with summary \+ \[End Session\] \+ \[Open Panel\].
 
-#### 7.9 Menu Bar ↔ Panel Sync
+##### 7.9 Menu Bar ↔ Panel Sync (deferred)
 
 Both share same session state from Supabase. Trade logged in panel → menu bar updates instantly.
 
-### Phase B3 — Risk DNA \+ Web App Integration
+### Phase B3 — Risk DNA \+ Web App Integration  *(NEXT)*
 
 #### 7.10 Settings Tab — Cost Model \+ Risk Limits
 

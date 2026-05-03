@@ -178,3 +178,73 @@ Supabase dashboard / CLI; not in this repo).
 - **Edge Function source** — not in this repo. Should live in
   `supabase/functions/tv-webhook/` if the user adopts the Supabase
   CLI workflow, otherwise document the deployment process here.
+
+---
+
+## 8. Phase B2 — Tray UX + Panel Layout (shipped same day)
+
+The original Phase B2 spec was "Menu Bar Display" — not built. Instead,
+daily use of the floating button surfaced a stack of edge-case bugs
+that needed fixing before any new feature work. The B2 banner now
+covers that fix set; Menu Bar Display is deferred (see
+`docs/NetPnL_Tracker_Build_Plan_v2.md`).
+
+### Commits
+
+| SHA | Title |
+|---|---|
+| `10df7ca` | feat: Phase B2 — tray show/hide toggle + fix floating button drag |
+| `ed9b2ea` | fix: remove tray click handler — let macOS open context menu instead |
+| `fc9a28a` | fix: change hotkey to Ctrl+Shift+G to avoid macOS Spotlight conflict |
+| `6313fbf` | fix: preserve floating button position across panel expand/collapse |
+| `d529713` | fix: smart panel expansion direction + preserve button position on collapse |
+| *(this commit)* | fix: smart panel expansion, position restore, hotkey Ctrl+Shift+G, drag fix — docs updated |
+
+### Files modified
+
+- `src/main/index.ts` — every fix landed here: tray menu rebuild, state
+  persistence, expansion direction logic, work-area clamp, hotkey
+  string. The renderer didn't need to know about any of it.
+- `src/renderer/src/components/FloatingButton.tsx` — added explicit
+  `WebkitAppRegion: 'drag'` + `cursor: 'grab'` style on the outer ring.
+
+### Bugs found and fixed during testing
+
+1. **Floating button drag stopped working.** The outer ring around the
+   inner button had no explicit drag region, so the OS treated it as
+   non-draggable in some Tailwind class combinations. Fix: explicit
+   `drag` style on the ring `div`. Inner button keeps `no-drag` so
+   clicks still register.
+2. **Hotkey `⌘⇧Space` silently never fired.** macOS Spotlight (or a
+   similar global shortcut binding) was grabbing the chord before
+   Electron saw it. Diagnosed by adding a `console.log` inside the
+   `globalShortcut.register` callback and checking the registration
+   return value. Fix: change to `⌃⇧G` (Control, not Command).
+3. **Tray click did inconsistent things.** Custom click handler made
+   the tray icon either "show hidden button" or "toggle panel"
+   depending on visibility state — surprising vs. macOS conventions.
+   Fix: remove the click handler entirely. macOS opens the context
+   menu on click by default when `setContextMenu` is configured.
+4. **Floating button drifted during panel expand → collapse.** Old
+   `togglePanel()` recomputed the anchor from the *current* bounds on
+   each toggle. When the expanded window was clamped by macOS (e.g.,
+   button near the top of the screen), the bottom-right corner shifted
+   down 500+ pixels, and that clamped position became the new anchor
+   for collapse. Fix: capture `collapsedAnchor` *before* expansion;
+   restore from it on collapse.
+5. **Panel cut off by left edge when button was on the left side.**
+   The pre-fix logic only expanded leftward and upward. Fix: pick
+   horizontal/vertical expansion direction based on `current.x` and
+   `current.y - workArea.y` against `EXPANDED.width` / `.height`.
+6. **Panel still overflowed bottom edge with button mid-screen.** When
+   neither side has enough room for the full 690px height, directional
+   logic alone can't help. Fix: a final clamp pins `newX`/`newY` to
+   the work area after the directional logic runs. Because
+   `collapsedAnchor` is saved *before* this clamp, the button still
+   returns to its exact pre-expand position on collapse.
+
+### What's not done
+
+- The original Phase B2 (Menu Bar Display) is deferred; design preserved
+  in the build plan.
+- Phase B3 (Risk DNA + Web App Integration) is next.
