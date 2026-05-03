@@ -30,6 +30,7 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let panelExpanded = false
 let buttonVisible = true
+let collapsedAnchor: Anchor | null = null
 
 function statePath(): string {
   return join(app.getPath('userData'), 'state.json')
@@ -174,17 +175,42 @@ function createWindow(): BrowserWindow {
 function togglePanel(): boolean {
   if (!mainWindow) return panelExpanded
   const current = mainWindow.getBounds()
-  const anchorX = current.x + current.width
-  const anchorY = current.y + current.height
+  const wasExpanded = panelExpanded
   panelExpanded = !panelExpanded
-  const next = panelExpanded ? EXPANDED : COLLAPSED
+
+  let newX: number
+  let newY: number
+  let nextSize: { width: number; height: number }
+
+  if (!wasExpanded) {
+    // Expanding: save the bottom-right corner so we can restore it on collapse,
+    // even if macOS clamps the expanded window to the work area.
+    collapsedAnchor = {
+      x: current.x + current.width,
+      y: current.y + current.height
+    }
+    nextSize = EXPANDED
+    const { workArea } = screen.getPrimaryDisplay()
+    const requestedY = collapsedAnchor.y - EXPANDED.height
+    // If expanding upward would clip the top of the work area, expand
+    // downward from the top-right corner instead.
+    newY = requestedY < workArea.y ? current.y : requestedY
+    newX = collapsedAnchor.x - EXPANDED.width
+  } else {
+    // Collapsing: restore the button to the saved bottom-right anchor,
+    // ignoring any drift that happened during expansion.
+    nextSize = COLLAPSED
+    const anchor = collapsedAnchor ?? {
+      x: current.x + current.width,
+      y: current.y + current.height
+    }
+    newX = anchor.x - COLLAPSED.width
+    newY = anchor.y - COLLAPSED.height
+    collapsedAnchor = null
+  }
+
   mainWindow.setBounds(
-    {
-      x: anchorX - next.width,
-      y: anchorY - next.height,
-      width: next.width,
-      height: next.height
-    },
+    { x: newX, y: newY, width: nextSize.width, height: nextSize.height },
     panelExpanded
   )
   mainWindow.webContents.send('panel:state', panelExpanded)
