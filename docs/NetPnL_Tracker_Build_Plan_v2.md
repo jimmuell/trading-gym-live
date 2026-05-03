@@ -371,6 +371,126 @@ On \[End Session\], show a summary card:
 
 Summary is written to Supabase so the web Analytics page can display it.
 
+### Phase B1.5 — Auto Trade Capture (SHIPPED 2026-05-03)
+
+Added in parallel with B1's manual entry, not a replacement. Eliminates
+the gap between firing a strategy in TradingView and remembering to
+type the result into `QuickTradeEntry`.
+
+#### Architecture
+
+```
+TradingView Pine Script alert
+        │  (HTTPS POST, JSON body, shared-secret header)
+        ▼
+Supabase Edge Function: tv-webhook
+        │  (validates secret, looks up active session,
+        │   computes net P&L using session.cost_per_trade
+        │   and session.tick_value, writes via service role)
+        ▼
+Supabase: live_trades (INSERT on entry, UPDATE on exit)
+        │  (Realtime publication: supabase_realtime)
+        ▼
+Electron renderer: sessionStore live_trades channel
+        │  (filter: trading_session_id=eq.<active_session.id>)
+        ▼
+Net P&L tab — auto-captured trades render with ⚡ badge,
+              open trades show "open @ <entry_price>" until exit.
+```
+
+#### Edge Function
+
+- **URL:** `https://iwvpbnhsabnioxrlddqx.supabase.co/functions/v1/tv-webhook`
+- **Auth:** shared secret `tg-webhook-2026` (override via the
+  `WEBHOOK_SECRET` env var on the function — set in the Supabase
+  dashboard under Functions → tv-webhook → Secrets).
+- **DB writes:** uses `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS).
+- **Payload (entry):**
+  ```json
+  {"action":"entry","direction":"long","price":5730.00,
+   "contracts":1,"strategy":"ORB","ticker":"MES1!"}
+  ```
+- **Payload (exit):**
+  ```json
+  {"action":"exit","direction":"long","price":5735.00,
+   "contracts":1,"strategy":"ORB","ticker":"MES1!"}
+  ```
+- **Pine Script alert message template:**
+  ```
+  {"action":"{{strategy.order.action}}","direction":"{{strategy.order.comment}}",
+   "price":{{strategy.order.price}},"contracts":{{strategy.position_size}},
+   "strategy":"{{strategy.market_position}}","ticker":"{{ticker}}"}
+  ```
+- **Function source:** not in this repo; deployed via Supabase
+  dashboard / CLI. See `docs/2026-05-03_session_changes.md` for
+  RLS history.
+
+#### Local fallback (Electron Express)
+
+`src/main/webhookServer.ts` runs an Express server on
+`127.0.0.1:3456` in the Electron main process with the same
+`/webhook/health` and `/webhook/trade` routes. Useful for offline /
+local Pine Script testing via TradingView Desktop with a webhook
+forwarder.
+
+**Caveat:** as shipped, the local server uses the anon key and the
+production RLS policies block anon writes. To use the local server
+for development you must either (a) load a service role key into
+`MAIN_VITE_SUPABASE_*` (do not bundle into a release build), or
+(b) temporarily re-add the anon `INSERT`/`UPDATE` policies on
+`live_trades` and the `status='active'` anon `SELECT` on
+`trading_sessions` (see the original migration file in git history).
+
+#### Two-table split: `trades` vs `live_trades`
+
+| Table         | Source                | Lifecycle              | Provides             |
+|---------------|-----------------------|------------------------|----------------------|
+| `trades`      | `QuickTradeEntry`     | Closed at insert       | `gross_pnl`, `net_pnl` (trader-supplied) |
+| `live_trades` | `tv-webhook` / Express| Open → closed (UPDATE) | `entry_price`, `gross_pnl`/`net_pnl` (computed on exit) |
+
+Both feed into the Net P&L tab via `sessionStore`:
+- `refreshTrades` hydrates both arrays in parallel on session change.
+- A Realtime channel subscribes to INSERT/UPDATE/DELETE on
+  `live_trades` filtered by `trading_session_id`.
+- `totals` excludes open `live_trades` (where `result` is null) so
+  pending entries don't contribute to win/loss counts or running net.
+- `TradeLog` merges and time-sorts both arrays, rendering open
+  live trades as "open @ <entry_price>" with no running-total step.
+
+#### Schema (`live_trades`)
+
+```sql
+create table public.live_trades (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  trading_session_id uuid not null
+    references public.trading_sessions(id) on delete cascade,
+  direction text not null check (direction in ('long','short')),
+  entry_price numeric,
+  contracts integer not null default 1,
+  strategy text,
+  commission numeric not null default 0,
+  result text check (result in ('win','loss','breakeven')),
+  gross_pnl numeric,
+  net_pnl numeric,
+  ticks numeric,
+  opened_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter publication supabase_realtime add table public.live_trades;
+```
+
+RLS: authenticated `SELECT`/`DELETE` for the owning user. Inserts
+and updates come from the Edge Function via service role and bypass
+RLS. Full migration: `migrations/2026-05-03_live_trades.sql`.
+
+#### What B1.5 does NOT change
+
+- Original Phase B2 (Menu Bar Display) and Phase B3 (Risk DNA + Web
+  App Integration) keep their numbering and remain unbuilt.
+- `QuickTradeEntry` and the `trades` table are untouched. Manual
+  logging continues to work alongside auto-captured trades.
+
 ### Phase B2 — Menu Bar Display
 
 #### 7.8 Menu Bar Readout
