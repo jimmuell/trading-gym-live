@@ -191,11 +191,13 @@ function togglePanel(): boolean {
     }
     nextSize = EXPANDED
     const { workArea } = screen.getPrimaryDisplay()
-    const requestedY = collapsedAnchor.y - EXPANDED.height
-    // If expanding upward would clip the top of the work area, expand
-    // downward from the top-right corner instead.
-    newY = requestedY < workArea.y ? current.y : requestedY
-    newX = collapsedAnchor.x - EXPANDED.width
+    // Pick expansion direction based on available room on each side.
+    // Prefer up + left (the original behavior); fall back to down / right
+    // when there isn't enough room. Keeps the floating button anchored.
+    const expandLeft = current.x >= EXPANDED.width
+    const expandUp = current.y - workArea.y >= EXPANDED.height
+    newX = expandLeft ? collapsedAnchor.x - EXPANDED.width : current.x
+    newY = expandUp ? collapsedAnchor.y - EXPANDED.height : current.y
   } else {
     // Collapsing: restore the button to the saved bottom-right anchor,
     // ignoring any drift that happened during expansion.
