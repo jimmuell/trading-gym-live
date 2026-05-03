@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, Loader2, LogOut, Save } from 'lucide-react'
 import { useSession, type RiskLimits } from '../stores/sessionStore'
 import { dailyDataFee, type CostSettings } from '../lib/costModel'
@@ -54,28 +54,31 @@ function NumField({
 
 function SaveButton({
   state,
-  disabled,
+  dirty,
   onClick,
   label = 'Save'
 }: {
   state: SaveState
-  disabled?: boolean
+  dirty: boolean
   onClick: () => void
   label?: string
 }): React.JSX.Element {
-  const Icon =
-    state === 'saving' ? Loader2 : state === 'saved' ? Check : Save
+  const Icon = state === 'saving' ? Loader2 : state === 'saved' ? Check : Save
   const text = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : label
+  const nonInteractive = state === 'saving' || state === 'saved' || !dirty
+
+  let visual: string
+  if (state === 'saved') visual = 'bg-emerald-600 text-white'
+  else if (state === 'saving') visual = 'bg-blue-600/80 text-white cursor-wait'
+  else if (dirty) visual = 'bg-blue-600 text-white hover:bg-blue-500 cursor-pointer'
+  else visual = 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || state === 'saving'}
-      className={`mt-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${
-        state === 'saved'
-          ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-          : 'bg-blue-600 text-white hover:bg-blue-500'
-      }`}
+      disabled={nonInteractive}
+      className={`mt-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition ${visual}`}
     >
       <Icon className={`h-3.5 w-3.5 ${state === 'saving' ? 'animate-spin' : ''}`} />
       {text}
@@ -83,24 +86,40 @@ function SaveButton({
   )
 }
 
-export default function SettingsPanel(): React.JSX.Element {
-  const { costSettings, riskLimits, saveCostSettings, saveRiskLimits, session } = useSession()
+function SettingsForm({
+  initialCost,
+  initialRisk
+}: {
+  initialCost: CostSettings
+  initialRisk: RiskLimits
+}): React.JSX.Element {
+  const { saveCostSettings, saveRiskLimits, session } = useSession()
   const { signOut, user } = useAuth()
 
-  const [draftCost, setDraftCost] = useState<CostSettings>(costSettings)
-  const [draftRisk, setDraftRisk] = useState<RiskLimits>(riskLimits)
+  // Drafts are seeded once from props (the store snapshot at mount).
+  // We deliberately do NOT re-sync from the store afterwards — any
+  // store-side reload would otherwise clobber unsaved user input.
+  const [draftCost, setDraftCost] = useState<CostSettings>(initialCost)
+  const [draftRisk, setDraftRisk] = useState<RiskLimits>(initialRisk)
+  // savedCost/savedRisk track what's persisted so we can detect dirty drafts.
+  const [savedCost, setSavedCost] = useState<CostSettings>(initialCost)
+  const [savedRisk, setSavedRisk] = useState<RiskLimits>(initialRisk)
   const [costState, setCostState] = useState<SaveState>('idle')
   const [riskState, setRiskState] = useState<SaveState>('idle')
   const [costError, setCostError] = useState<string | null>(null)
   const [riskError, setRiskError] = useState<string | null>(null)
 
-  useEffect(() => {
-    setDraftCost(costSettings)
-  }, [costSettings])
+  const costDirty =
+    draftCost.monthlyDataFee !== savedCost.monthlyDataFee ||
+    draftCost.tradingDaysPerMonth !== savedCost.tradingDaysPerMonth ||
+    draftCost.commissionPerTrade !== savedCost.commissionPerTrade ||
+    draftCost.tickValue !== savedCost.tickValue ||
+    draftCost.defaultContracts !== savedCost.defaultContracts
 
-  useEffect(() => {
-    setDraftRisk(riskLimits)
-  }, [riskLimits])
+  const riskDirty =
+    draftRisk.maxDailyLoss !== savedRisk.maxDailyLoss ||
+    draftRisk.plannedTrades !== savedRisk.plannedTrades ||
+    draftRisk.maxConsecutiveLosses !== savedRisk.maxConsecutiveLosses
 
   const dailyData = dailyDataFee(draftCost)
 
@@ -109,6 +128,7 @@ export default function SettingsPanel(): React.JSX.Element {
     setCostError(null)
     try {
       await saveCostSettings(draftCost)
+      setSavedCost(draftCost)
       setCostState('saved')
       setTimeout(() => setCostState('idle'), 1500)
     } catch (err) {
@@ -122,6 +142,7 @@ export default function SettingsPanel(): React.JSX.Element {
     setRiskError(null)
     try {
       await saveRiskLimits(draftRisk)
+      setSavedRisk(draftRisk)
       setRiskState('saved')
       setTimeout(() => setRiskState('idle'), 1500)
     } catch (err) {
@@ -212,7 +233,7 @@ export default function SettingsPanel(): React.JSX.Element {
           </div>
         )}
 
-        <SaveButton state={costState} onClick={onSaveCost} label="Save cost model" />
+        <SaveButton state={costState} dirty={costDirty} onClick={onSaveCost} label="Save cost model" />
       </section>
 
       <section className="flex flex-col gap-2 border-b border-white/5 p-3">
@@ -272,8 +293,25 @@ export default function SettingsPanel(): React.JSX.Element {
           </div>
         )}
 
-        <SaveButton state={riskState} onClick={onSaveRisk} label="Save risk limits" />
+        <SaveButton state={riskState} dirty={riskDirty} onClick={onSaveRisk} label="Save risk limits" />
       </section>
     </div>
   )
+}
+
+export default function SettingsPanel(): React.JSX.Element {
+  const { loading, costSettings, riskLimits } = useSession()
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+      </div>
+    )
+  }
+
+  // Pass current store snapshot as the seed for SettingsForm. SettingsForm's
+  // own useState initializers freeze these values for the lifetime of the
+  // form's mount, so unsaved drafts can't be overwritten by background reloads.
+  return <SettingsForm initialCost={costSettings} initialRisk={riskLimits} />
 }

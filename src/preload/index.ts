@@ -19,6 +19,10 @@ const api = {
     getToken: (): Promise<string | null> => ipcRenderer.invoke('auth:get-token'),
     saveToken: (token: string): Promise<boolean> => ipcRenderer.invoke('auth:save-token', token),
     clearToken: (): Promise<void> => ipcRenderer.invoke('auth:clear-token')
+  },
+  webhook: {
+    getStatus: (): Promise<{ port: number; running: boolean }> =>
+      ipcRenderer.invoke('webhook:get-status')
   }
 }
 

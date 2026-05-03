@@ -12,6 +12,12 @@ import {
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import {
+  getWebhookPort,
+  isWebhookRunning,
+  startWebhookServer,
+  stopWebhookServer
+} from './webhookServer'
 
 const COLLAPSED = { width: 80, height: 80 }
 const EXPANDED = { width: 380, height: 690 }
@@ -153,6 +159,10 @@ function createWindow(): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  if (is.dev) {
+    win.webContents.openDevTools({ mode: 'detach' })
+  }
+
   mainWindow = win
   return win
 }
@@ -226,12 +236,21 @@ function registerIpc(): void {
   ipcMain.handle('auth:clear-token', () => {
     clearAuthToken()
   })
+
+  ipcMain.handle('webhook:get-status', () => ({
+    port: getWebhookPort(),
+    running: isWebhookRunning()
+  }))
 }
 
 app.whenReady().then(() => {
   createWindow()
   createTray()
   registerIpc()
+
+  const supabaseUrl = import.meta.env.MAIN_VITE_SUPABASE_URL ?? ''
+  const supabaseKey = import.meta.env.MAIN_VITE_SUPABASE_PUBLISHABLE_KEY ?? ''
+  startWebhookServer(supabaseUrl, supabaseKey)
 
   const hotkey = 'CommandOrControl+Shift+Space'
   const registered = globalShortcut.register(hotkey, showAndTogglePanel)
@@ -245,6 +264,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  stopWebhookServer()
 })
 
 app.on('window-all-closed', () => {

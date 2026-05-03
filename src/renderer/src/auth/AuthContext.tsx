@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     hydrate()
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, next) => {
+      console.log('[auth] onAuthStateChange', event, 'user.id:', next?.user?.id)
       if (cancelled) return
       setSession(next)
       setStatus(next ? 'signed-in' : 'signed-out')

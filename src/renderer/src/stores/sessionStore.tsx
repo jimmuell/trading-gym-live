@@ -45,6 +45,22 @@ export type Trade = {
   result: 'win' | 'loss' | 'breakeven' | null
 }
 
+export type LiveTrade = {
+  id: string
+  user_id: string
+  trading_session_id: string
+  direction: 'long' | 'short'
+  entry_price: number | null
+  contracts: number
+  strategy: string | null
+  commission: number
+  result: 'win' | 'loss' | 'breakeven' | null
+  gross_pnl: number | null
+  net_pnl: number | null
+  ticks: number | null
+  opened_at: string
+}
+
 export type LogTradeInput = {
   grossPnl: number
   contracts: number
@@ -86,6 +102,7 @@ type SessionContextValue = {
   riskLimits: RiskLimits
   session: TradingSession | null
   trades: Trade[]
+  liveTrades: LiveTrade[]
   startSession: (overrides?: Partial<TradingSession>) => Promise<void>
   endSession: () => Promise<void>
   logTrade: (input: LogTradeInput) => Promise<void>
@@ -108,6 +125,7 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   const [riskLimits, setRiskLimits] = useState<RiskLimits>(DEFAULT_RISK_LIMITS)
   const [session, setSession] = useState<TradingSession | null>(null)
   const [trades, setTrades] = useState<Trade[]>([])
+  const [liveTrades, setLiveTrades] = useState<LiveTrade[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -119,6 +137,7 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     let cancelled = false
 
     async function load(): Promise<void> {
+      console.log('[sessionStore] load() running for user', user?.id)
       setLoading(true)
       setError(null)
 
@@ -178,28 +197,110 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     return () => {
       cancelled = true
     }
-  }, [user])
+    // depend on user.id (stable string), NOT user (object whose reference
+    // changes on Supabase token refresh and would re-fire the load and
+    // clobber any unsaved drafts)
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshTrades = useCallback(async (): Promise<void> => {
     if (!session) {
       setTrades([])
+      setLiveTrades([])
       return
     }
-    const { data, error: err } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('trading_session_id', session.id)
-      .order('opened_at', { ascending: true })
-    if (err) {
-      setError(err.message)
+    const [manualRes, liveRes] = await Promise.all([
+      supabase
+        .from('trades')
+        .select('*')
+        .eq('trading_session_id', session.id)
+        .order('opened_at', { ascending: true }),
+      supabase
+        .from('live_trades')
+        .select('*')
+        .eq('trading_session_id', session.id)
+        .order('opened_at', { ascending: true })
+    ])
+    if (manualRes.error) {
+      setError(manualRes.error.message)
       return
     }
-    setTrades((data as Trade[]) ?? [])
+    if (liveRes.error) {
+      console.warn('[sessionStore] live_trades load:', liveRes.error.message)
+    }
+    setTrades((manualRes.data as Trade[]) ?? [])
+    setLiveTrades((liveRes.data as LiveTrade[]) ?? [])
   }, [session])
 
   useEffect(() => {
     refreshTrades()
   }, [refreshTrades])
+
+  // Realtime subscription for webhook-captured trades on the active session.
+  useEffect(() => {
+    if (!session) return
+    const sessionId = session.id
+    const channel = supabase
+      .channel(`live_trades:${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'live_trades',
+          filter: `trading_session_id=eq.${sessionId}`
+        },
+        (payload) => {
+          const row = payload.new as LiveTrade
+          setLiveTrades((prev) =>
+            prev.some((t) => t.id === row.id) ? prev : [...prev, row]
+          )
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'live_trades',
+          filter: `trading_session_id=eq.${sessionId}`
+        },
+        (payload) => {
+          const row = payload.new as LiveTrade
+          setLiveTrades((prev) => {
+            const idx = prev.findIndex((t) => t.id === row.id)
+            if (idx === -1) return [...prev, row]
+            const next = prev.slice()
+            next[idx] = row
+            return next
+          })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'live_trades',
+          filter: `trading_session_id=eq.${sessionId}`
+        },
+        (payload) => {
+          const oldRow = payload.old as { id?: string }
+          if (!oldRow?.id) return
+          setLiveTrades((prev) => prev.filter((t) => t.id !== oldRow.id))
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(
+            `[sessionStore] live_trades realtime ${status}. Run: ALTER PUBLICATION supabase_realtime ADD TABLE live_trades;`
+          )
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [session?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startSession = useCallback(
     async (overrides: Partial<TradingSession> = {}): Promise<void> => {
@@ -298,7 +399,10 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
 
   const saveCostSettings = useCallback(
     async (next: CostSettings): Promise<void> => {
-      if (!user) return
+      if (!user) {
+        console.warn('[saveCostSettings] no user — aborting')
+        return
+      }
       setError(null)
       const payload = {
         user_id: user.id,
@@ -309,12 +413,20 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
         default_contracts: next.defaultContracts,
         updated_at: new Date().toISOString()
       }
-      const { error: err } = await supabase
+      console.log('[saveCostSettings] upsert payload', payload)
+      const { data, error: err } = await supabase
         .from('cost_settings')
         .upsert(payload, { onConflict: 'user_id' })
+        .select()
+      console.log('[saveCostSettings] response', { data, error: err })
       if (err) {
         setError(err.message)
         throw new Error(err.message)
+      }
+      if (!data || data.length === 0) {
+        const msg = 'cost_settings upsert returned no rows (check RLS policies)'
+        setError(msg)
+        throw new Error(msg)
       }
       setCostSettings(next)
     },
@@ -323,7 +435,10 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
 
   const saveRiskLimits = useCallback(
     async (next: RiskLimits): Promise<void> => {
-      if (!user) return
+      if (!user) {
+        console.warn('[saveRiskLimits] no user — aborting')
+        return
+      }
       setError(null)
       const payload = {
         user_id: user.id,
@@ -332,12 +447,20 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
         max_consecutive_losses: next.maxConsecutiveLosses,
         updated_at: new Date().toISOString()
       }
-      const { error: err } = await supabase
+      console.log('[saveRiskLimits] upsert payload', payload)
+      const { data, error: err } = await supabase
         .from('cost_settings')
         .upsert(payload, { onConflict: 'user_id' })
+        .select()
+      console.log('[saveRiskLimits] response', { data, error: err })
       if (err) {
         setError(err.message)
         throw new Error(err.message)
+      }
+      if (!data || data.length === 0) {
+        const msg = 'cost_settings upsert returned no rows (check RLS policies)'
+        setError(msg)
+        throw new Error(msg)
       }
       setRiskLimits(next)
     },
@@ -352,24 +475,44 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     let lossCount = 0
     let largestWin = 0
     let largestLoss = 0
-    let consecutive = 0
+
+    type Closed = { opened_at: string; gross: number; commission: number; net: number }
+    const closed: Closed[] = []
     for (const t of trades) {
-      const g = Number(t.gross_pnl)
-      const c = Number(t.commission)
-      const n = Number(t.net_pnl)
-      grossTotal += g
-      commissionTotal += c
-      tradeNetTotal += n
-      if (n > 0) {
+      closed.push({
+        opened_at: t.opened_at,
+        gross: Number(t.gross_pnl),
+        commission: Number(t.commission),
+        net: Number(t.net_pnl)
+      })
+    }
+    for (const lt of liveTrades) {
+      if (lt.result === null || lt.gross_pnl === null || lt.net_pnl === null) continue
+      closed.push({
+        opened_at: lt.opened_at,
+        gross: Number(lt.gross_pnl),
+        commission: Number(lt.commission),
+        net: Number(lt.net_pnl)
+      })
+    }
+    closed.sort((a, b) => a.opened_at.localeCompare(b.opened_at))
+
+    let consecutive = 0
+    for (const t of closed) {
+      grossTotal += t.gross
+      commissionTotal += t.commission
+      tradeNetTotal += t.net
+      if (t.net > 0) {
         winCount++
         consecutive = 0
-        largestWin = Math.max(largestWin, n)
-      } else if (n < 0) {
+        largestWin = Math.max(largestWin, t.net)
+      } else if (t.net < 0) {
         lossCount++
         consecutive++
-        largestLoss = Math.min(largestLoss, n)
+        largestLoss = Math.min(largestLoss, t.net)
       }
     }
+
     const dataFeeTotal = session
       ? Number(session.daily_data_fee)
       : dailyDataFee(costSettings)
@@ -382,14 +525,14 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
       dataFeeTotal,
       netTotal: sessionNet,
       feeDragPct: feeDrag,
-      tradeCount: trades.length,
+      tradeCount: closed.length,
       winCount,
       lossCount,
       largestWin,
       largestLoss,
       consecutiveLosses: consecutive
     }
-  }, [trades, session, costSettings])
+  }, [trades, liveTrades, session, costSettings])
 
   const value: SessionContextValue = {
     loading,
@@ -398,6 +541,7 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     riskLimits,
     session,
     trades,
+    liveTrades,
     startSession,
     endSession,
     logTrade,
