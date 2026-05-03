@@ -24,11 +24,12 @@ const EXPANDED = { width: 380, height: 690 }
 const SCREEN_MARGIN = 20
 
 type Anchor = { x: number; y: number }
-type State = { anchor?: Anchor }
+type State = { anchor?: Anchor; buttonVisible?: boolean }
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let panelExpanded = false
+let buttonVisible = true
 
 function statePath(): string {
   return join(app.getPath('userData'), 'state.json')
@@ -88,9 +89,10 @@ function loadState(): State {
   }
 }
 
-function saveAnchor(anchor: Anchor): void {
+function saveState(partial: Partial<State>): void {
   try {
-    writeFileSync(statePath(), JSON.stringify({ anchor }, null, 2), 'utf-8')
+    const merged = { ...loadState(), ...partial }
+    writeFileSync(statePath(), JSON.stringify(merged, null, 2), 'utf-8')
   } catch (err) {
     console.error('Failed to save state:', err)
   }
@@ -144,10 +146,12 @@ function createWindow(): BrowserWindow {
 
   win.setAlwaysOnTop(true, 'screen-saver')
 
-  win.on('ready-to-show', () => win.show())
+  win.on('ready-to-show', () => {
+    if (buttonVisible) win.show()
+  })
   win.on('moved', () => {
     const b = win.getBounds()
-    saveAnchor({ x: b.x + b.width, y: b.y + b.height })
+    saveState({ anchor: { x: b.x + b.width, y: b.y + b.height } })
   })
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
@@ -192,9 +196,51 @@ function showAndTogglePanel(): void {
     createWindow()
     return
   }
+  if (!buttonVisible) {
+    mainWindow.show()
+    buttonVisible = true
+    saveState({ buttonVisible })
+    rebuildTrayMenu()
+    if (!panelExpanded) togglePanel()
+    return
+  }
   if (!mainWindow.isVisible()) mainWindow.show()
   mainWindow.focus()
   togglePanel()
+}
+
+function toggleButtonVisibility(): void {
+  if (!mainWindow) return
+
+  if (buttonVisible) {
+    if (panelExpanded) togglePanel()
+    mainWindow.hide()
+    buttonVisible = false
+  } else {
+    mainWindow.show()
+    buttonVisible = true
+  }
+
+  saveState({ buttonVisible })
+  rebuildTrayMenu()
+}
+
+function rebuildTrayMenu(): void {
+  if (!tray) return
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Toggle Panel',
+      accelerator: 'CommandOrControl+Shift+Space',
+      click: () => showAndTogglePanel()
+    },
+    {
+      label: buttonVisible ? 'Hide Floating Button' : 'Show Floating Button',
+      click: () => toggleButtonVisibility()
+    },
+    { type: 'separator' },
+    { label: 'Quit TradingGYM Live', click: () => app.quit() }
+  ])
+  tray.setContextMenu(menu)
 }
 
 function createTray(): void {
@@ -203,17 +249,20 @@ function createTray(): void {
   tray = new Tray(image)
   tray.setToolTip('TradingGYM Live')
 
-  const menu = Menu.buildFromTemplate([
-    {
-      label: 'Toggle Panel',
-      accelerator: 'CommandOrControl+Shift+Space',
-      click: () => showAndTogglePanel()
-    },
-    { type: 'separator' },
-    { label: 'Quit TradingGYM Live', click: () => app.quit() }
-  ])
-  tray.setContextMenu(menu)
-  tray.on('click', () => showAndTogglePanel())
+  rebuildTrayMenu()
+
+  tray.on('click', () => {
+    if (!buttonVisible) {
+      if (mainWindow) {
+        mainWindow.show()
+        buttonVisible = true
+        saveState({ buttonVisible })
+        rebuildTrayMenu()
+      }
+      return
+    }
+    showAndTogglePanel()
+  })
 }
 
 function registerIpc(): void {
@@ -244,6 +293,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  buttonVisible = loadState().buttonVisible !== false
   createWindow()
   createTray()
   registerIpc()

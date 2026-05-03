@@ -1,6 +1,7 @@
 import { ClipboardCheck } from 'lucide-react'
 
 const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
+const drag = { WebkitAppRegion: 'drag', cursor: 'grab' } as React.CSSProperties
 
 type Props = {
   onClick: () => void
@@ -10,7 +11,10 @@ type Props = {
 export default function FloatingButton({ onClick, expanded }: Props): React.JSX.Element {
   return (
     <div className="absolute bottom-0 right-0 z-10 flex h-20 w-20 items-center justify-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-950/90 shadow-[0_10px_30px_rgba(30,58,138,0.5)]">
+      <div
+        className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-950/90 shadow-[0_10px_30px_rgba(30,58,138,0.5)]"
+        style={drag}
+      >
         <button
           type="button"
           onClick={onClick}
