@@ -69,10 +69,7 @@ export default function ChecklistPanel(): React.JSX.Element {
       setError(null)
 
       const [tplRes, sessRes] = await Promise.all([
-        supabase
-          .from('checklist_templates')
-          .select('*')
-          .order('created_at', { ascending: true }),
+        supabase.from('checklist_templates').select('*').order('created_at', { ascending: true }),
         supabase
           .from('checklist_sessions')
           .select('*')
@@ -190,10 +187,7 @@ export default function ChecklistPanel(): React.JSX.Element {
         cur ? ({ ...cur, ...patch, session_prep_completed: next } as ChecklistSession) : cur
       )
 
-      const { error: err } = await supabase
-        .from('checklist_sessions')
-        .update(patch)
-        .eq('id', s.id)
+      const { error: err } = await supabase.from('checklist_sessions').update(patch).eq('id', s.id)
       if (err) setError(err.message)
     },
     [ensureSession]
@@ -268,8 +262,7 @@ function PrepItemRow({
   value: unknown
   onCommit: (v: string | boolean | number) => void
 }): React.JSX.Element {
-  const initial =
-    typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+  const initial = typeof value === 'string' || typeof value === 'number' ? String(value) : ''
   const [draft, setDraft] = useState<string>(initial)
 
   useEffect(() => {

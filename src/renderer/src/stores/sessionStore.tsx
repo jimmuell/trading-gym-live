@@ -165,19 +165,19 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
           tradingDaysPerMonth: Number(
             cs.trading_days_per_month ?? COST_DEFAULTS.tradingDaysPerMonth
           ),
-          commissionPerTrade: Number(
-            cs.commission_per_trade ?? COST_DEFAULTS.commissionPerTrade
-          ),
+          commissionPerTrade: Number(cs.commission_per_trade ?? COST_DEFAULTS.commissionPerTrade),
           tickValue: Number(cs.tick_value ?? COST_DEFAULTS.tickValue),
           defaultContracts: Number(cs.default_contracts ?? COST_DEFAULTS.defaultContracts)
         })
         setRiskLimits({
-          maxDailyLoss: cs.max_daily_loss === null || cs.max_daily_loss === undefined
-            ? null
-            : Number(cs.max_daily_loss),
-          plannedTrades: cs.planned_trades === null || cs.planned_trades === undefined
-            ? null
-            : Number(cs.planned_trades),
+          maxDailyLoss:
+            cs.max_daily_loss === null || cs.max_daily_loss === undefined
+              ? null
+              : Number(cs.max_daily_loss),
+          plannedTrades:
+            cs.planned_trades === null || cs.planned_trades === undefined
+              ? null
+              : Number(cs.planned_trades),
           maxConsecutiveLosses:
             cs.max_consecutive_losses === null || cs.max_consecutive_losses === undefined
               ? null
@@ -251,9 +251,7 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
         },
         (payload) => {
           const row = payload.new as LiveTrade
-          setLiveTrades((prev) =>
-            prev.some((t) => t.id === row.id) ? prev : [...prev, row]
-          )
+          setLiveTrades((prev) => (prev.some((t) => t.id === row.id) ? prev : [...prev, row]))
         }
       )
       .on(
@@ -513,9 +511,7 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
       }
     }
 
-    const dataFeeTotal = session
-      ? Number(session.daily_data_fee)
-      : dailyDataFee(costSettings)
+    const dataFeeTotal = session ? Number(session.daily_data_fee) : dailyDataFee(costSettings)
     const sessionNet = tradeNetTotal - dataFeeTotal
     const totalCosts = commissionTotal + dataFeeTotal
     const feeDrag = grossTotal !== 0 ? (totalCosts / Math.abs(grossTotal)) * 100 : 0

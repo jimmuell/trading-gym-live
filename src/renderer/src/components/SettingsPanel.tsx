@@ -158,9 +158,7 @@ function SettingsForm({
       <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
         <div>
           <div className="text-xs font-semibold text-zinc-100">Settings</div>
-          {user?.email && (
-            <div className="truncate text-[10px] text-zinc-500">{user.email}</div>
-          )}
+          {user?.email && <div className="truncate text-[10px] text-zinc-500">{user.email}</div>}
         </div>
         <button
           type="button"
@@ -222,9 +220,7 @@ function SettingsForm({
 
         <div className="mt-1 flex items-center justify-between rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[10px]">
           <span className="text-zinc-500">Daily data cost</span>
-          <span className="font-mono tabular-nums text-zinc-300">
-            ${dailyData.toFixed(2)}
-          </span>
+          <span className="font-mono tabular-nums text-zinc-300">${dailyData.toFixed(2)}</span>
         </div>
 
         {costError && (
@@ -233,7 +229,12 @@ function SettingsForm({
           </div>
         )}
 
-        <SaveButton state={costState} dirty={costDirty} onClick={onSaveCost} label="Save cost model" />
+        <SaveButton
+          state={costState}
+          dirty={costDirty}
+          onClick={onSaveCost}
+          label="Save cost model"
+        />
       </section>
 
       <section className="flex flex-col gap-2 border-b border-white/5 p-3">
@@ -293,7 +294,12 @@ function SettingsForm({
           </div>
         )}
 
-        <SaveButton state={riskState} dirty={riskDirty} onClick={onSaveRisk} label="Save risk limits" />
+        <SaveButton
+          state={riskState}
+          dirty={riskDirty}
+          onClick={onSaveRisk}
+          label="Save risk limits"
+        />
       </section>
     </div>
   )

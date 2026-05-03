@@ -59,10 +59,7 @@ export default function TradeLog(): React.JSX.Element {
   const { trades, liveTrades, deleteTrade } = useSession()
 
   const rows = useMemo<Row[]>(() => {
-    const merged: Row[] = [
-      ...trades.map(manualToRow),
-      ...liveTrades.map(liveToRow)
-    ]
+    const merged: Row[] = [...trades.map(manualToRow), ...liveTrades.map(liveToRow)]
     merged.sort((a, b) => a.opened_at.localeCompare(b.opened_at))
     return merged
   }, [trades, liveTrades])
@@ -85,10 +82,11 @@ export default function TradeLog(): React.JSX.Element {
         const isWin = !t.open && net > 0
         const isLoss = !t.open && net < 0
         return (
-          <li key={`${t.source}:${t.id}`} className="group flex items-center gap-2 px-3 py-1.5 text-[11px]">
-            <span className="w-10 shrink-0 font-mono text-zinc-500">
-              {fmtTime(t.opened_at)}
-            </span>
+          <li
+            key={`${t.source}:${t.id}`}
+            className="group flex items-center gap-2 px-3 py-1.5 text-[11px]"
+          >
+            <span className="w-10 shrink-0 font-mono text-zinc-500">{fmtTime(t.opened_at)}</span>
             <span
               className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${
                 t.direction === 'long'
@@ -102,9 +100,7 @@ export default function TradeLog(): React.JSX.Element {
                 <ArrowDown className="h-3 w-3" />
               )}
             </span>
-            <span className="w-5 shrink-0 text-center font-mono text-zinc-500">
-              {t.contracts}c
-            </span>
+            <span className="w-5 shrink-0 text-center font-mono text-zinc-500">{t.contracts}c</span>
             {t.source === 'auto' && (
               <span
                 className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-amber-500/15 text-amber-300"
@@ -133,11 +129,7 @@ export default function TradeLog(): React.JSX.Element {
             </span>
             <span
               className={`w-14 shrink-0 text-right font-mono tabular-nums ${
-                running > 0
-                  ? 'text-emerald-300'
-                  : running < 0
-                    ? 'text-red-300'
-                    : 'text-zinc-400'
+                running > 0 ? 'text-emerald-300' : running < 0 ? 'text-red-300' : 'text-zinc-400'
               }`}
             >
               {t.open ? '—' : fmtAmount(running)}

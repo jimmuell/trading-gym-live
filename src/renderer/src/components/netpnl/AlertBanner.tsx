@@ -1,10 +1,6 @@
 import { AlertTriangle } from 'lucide-react'
 import { useSession } from '../../stores/sessionStore'
-import {
-  FEE_DRAG_THRESHOLDS,
-  LOSS_THRESHOLDS,
-  TRADE_VOLUME_THRESHOLDS
-} from '../../lib/costModel'
+import { FEE_DRAG_THRESHOLDS, LOSS_THRESHOLDS, TRADE_VOLUME_THRESHOLDS } from '../../lib/costModel'
 
 type AlertLevel = 'warn' | 'alert' | 'danger'
 type Alert = { level: AlertLevel; message: string; key: string }

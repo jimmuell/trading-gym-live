@@ -21,11 +21,7 @@ export function netPnl(grossPnl: number, contracts: number, s: CostSettings): nu
   return grossPnl - commissionForTrade(contracts, s)
 }
 
-export function ticksFromGross(
-  grossPnl: number,
-  contracts: number,
-  s: CostSettings
-): number {
+export function ticksFromGross(grossPnl: number, contracts: number, s: CostSettings): number {
   if (contracts <= 0 || s.tickValue <= 0) return 0
   return grossPnl / (s.tickValue * contracts)
 }

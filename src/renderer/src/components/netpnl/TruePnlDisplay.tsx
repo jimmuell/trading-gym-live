@@ -54,9 +54,7 @@ export default function TruePnlDisplay(): React.JSX.Element {
           </div>
         )}
         {!session && (
-          <div className="mt-2 text-[10px] italic text-zinc-500">
-            Start a session to log trades
-          </div>
+          <div className="mt-2 text-[10px] italic text-zinc-500">Start a session to log trades</div>
         )}
       </div>
     </div>

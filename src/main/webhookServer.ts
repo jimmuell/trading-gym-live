@@ -95,11 +95,7 @@ export function startWebhookServer(supabaseUrl: string, supabaseKey: string): vo
           opened_at: new Date().toISOString()
         }
 
-        const { data: result, error } = await sb
-          .from('live_trades')
-          .insert(trade)
-          .select()
-          .single()
+        const { data: result, error } = await sb.from('live_trades').insert(trade).select().single()
 
         if (error) {
           console.error('[webhook] entry insert failed:', error.message)

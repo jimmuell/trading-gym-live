@@ -30,8 +30,7 @@ export default function SessionSummary(): React.JSX.Element | null {
 
   if (!session || session.status !== 'ended' || dismissed) return null
 
-  const { grossTotal, netTotal, tradeCount, winCount, lossCount, largestWin, largestLoss } =
-    totals
+  const { grossTotal, netTotal, tradeCount, winCount, lossCount, largestWin, largestLoss } = totals
   const gap = grossTotal - netTotal
   const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0
   const planned = session.planned_trades
@@ -53,9 +52,7 @@ export default function SessionSummary(): React.JSX.Element | null {
 
       <div className="mt-3 flex flex-col gap-2 overflow-auto text-[11px]">
         <div className="rounded-md border border-white/10 bg-black/30 p-2">
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-            Gross vs Net
-          </div>
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Gross vs Net</div>
           <div className="mt-1 flex items-baseline justify-between gap-2">
             <span className="font-mono tabular-nums text-zinc-300">{fmt(grossTotal)}</span>
             <span className="text-zinc-500">→</span>
@@ -72,16 +69,11 @@ export default function SessionSummary(): React.JSX.Element | null {
           </div>
         </div>
 
-        <Stat
-          label="Trades"
-          value={`${tradeCount}${planned ? ` / ${planned} planned` : ''}`}
-        />
+        <Stat label="Trades" value={`${tradeCount}${planned ? ` / ${planned} planned` : ''}`} />
         <Stat label="Win rate" value={`${winRate.toFixed(0)}% (${winCount}W ${lossCount}L)`} />
         <Stat label="Largest win" value={fmt(largestWin)} valueColor="text-emerald-300" />
         <Stat label="Largest loss" value={fmt(largestLoss)} valueColor="text-red-300" />
-        {adherence !== null && (
-          <Stat label="Plan adherence" value={`${adherence.toFixed(0)}%`} />
-        )}
+        {adherence !== null && <Stat label="Plan adherence" value={`${adherence.toFixed(0)}%`} />}
       </div>
     </div>
   )
