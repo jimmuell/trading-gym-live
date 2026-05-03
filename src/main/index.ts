@@ -230,7 +230,7 @@ function rebuildTrayMenu(): void {
   const menu = Menu.buildFromTemplate([
     {
       label: 'Toggle Panel',
-      accelerator: 'CommandOrControl+Shift+Space',
+      accelerator: 'Control+Shift+G',
       click: () => showAndTogglePanel()
     },
     {
@@ -289,7 +289,7 @@ app.whenReady().then(() => {
   const supabaseKey = import.meta.env.MAIN_VITE_SUPABASE_PUBLISHABLE_KEY ?? ''
   startWebhookServer(supabaseUrl, supabaseKey)
 
-  const hotkey = 'CommandOrControl+Shift+Space'
+  const hotkey = 'Control+Shift+G'
   const registered = globalShortcut.register(hotkey, showAndTogglePanel)
   if (!registered) console.warn(`Failed to register global shortcut ${hotkey}`)
 
