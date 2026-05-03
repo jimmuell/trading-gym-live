@@ -250,19 +250,6 @@ function createTray(): void {
   tray.setToolTip('TradingGYM Live')
 
   rebuildTrayMenu()
-
-  tray.on('click', () => {
-    if (!buttonVisible) {
-      if (mainWindow) {
-        mainWindow.show()
-        buttonVisible = true
-        saveState({ buttonVisible })
-        rebuildTrayMenu()
-      }
-      return
-    }
-    showAndTogglePanel()
-  })
 }
 
 function registerIpc(): void {
